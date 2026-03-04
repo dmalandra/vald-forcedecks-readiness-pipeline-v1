@@ -1,6 +1,6 @@
-# vald-forcedecks-readiness-pipeline-v1
+# VALD-forcedecks-readiness-pipeline-v1
 
-An automated neuromuscular readiness monitoring pipeline integrating the VALD ForceDecks API with Google Sheets. Built for daily athlete monitoring in collegiate strength & conditioning.
+An automated neuromuscular readiness monitoring pipeline integrating the VALD ForceDecks API with Google Sheets. Built for daily athlete monitoring and weight room prescription guidance in collegiate strength & conditioning.
 
 Pulls countermovement jump (CMJ) test data from the VALD Hub, computes rolling individual baselines, calculates percent deviations, assigns traffic light readiness flags, and writes results directly to a Google Sheets coaching dashboard — triggered by a single command.
 
