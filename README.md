@@ -259,8 +259,6 @@ All formula-driven columns left untouched.
 
 **Trials endpoint:** The detailed tests endpoint (`/v2019q3/teams/{teamId}/tests/detailed/{dateFrom}/{dateTo}`) embeds trial structure but returns empty `results` arrays. Metric values require a separate call to `/v2019q3/teams/{teamId}/tests/{testId}/trials` per test.
 
-**Metric availability:** Full 5-metric output requires a ForceDecks test profile configured to compute the complete CMJ metric set. Tests run with a basic profile will only return a subset of metrics.
-
 ---
 
 ## Author
