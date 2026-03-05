@@ -1,8 +1,8 @@
-# VALD-forcedecks-readiness-pipeline-v1
+# vald-forcedecks-readiness-pipeline-v1
 
 An automated neuromuscular readiness monitoring pipeline integrating the VALD ForceDecks API with Google Sheets. Built for daily athlete monitoring and weight room prescription guidance in collegiate strength & conditioning.
 
-Pulls countermovement jump (CMJ) test data from the VALD Hub, computes rolling individual baselines, calculates percent deviations, assigns traffic light readiness flags, and writes results directly to a Google Sheets coaching dashboard — triggered by a single command.
+Pulls countermovement jump (CMJ) test data from the VALD Hub, computes rolling individual baselines, calculates percent deviations, assigns traffic light readiness flags, and writes results directly to a Google Sheets coaching dashboard — triggered by a single command or running continuously in watch mode during live testing sessions.
 
 ---
 
@@ -36,12 +36,14 @@ DASHBOARD SNAPSHOT
    🔴 Ecc. Braking RFD/BM    -51.5%
    🔴 Peak Power/BM          -26.0%
    🔴 Contraction Time       +17.8%
+   ⚡ Flags: Jump Height (RED) -30.9%, RSImod (RED) -42.9%
 
 🟡  Athlete B ⚠️  BASELINE ESTABLISHING
    🟡 Jump Height            -7.1%
    🔴 RSImod                 -14.8%
    🟡 Peak Power/BM          -9.5%
    🟡 Contraction Time       +6.2%
+   ⚡ Flags: RSImod (RED) -14.8%, Peak Power/BM (YELLOW) -9.5%
 
 🟢  Athlete C
    🟢 Jump Height            +11.0%
@@ -152,7 +154,12 @@ vald_pipeline/
 ├── vald_config.py         # Constants, result IDs, group mappings
 ├── .env                   # Credentials (not committed)
 ├── service_account.json   # Google service account (not committed)
-└── .gitignore
+├── .gitignore
+└── dev/                   # API discovery and diagnostic scripts
+    ├── probe_apis.py
+    ├── probe_forcedecks.py
+    ├── probe_trials.py
+    └── explore_forcedecks.py
 ```
 
 ---
@@ -189,7 +196,7 @@ SERVICE_ACCOUNT_FILE=service_account.json
 
 Requires VALD client credentials with access to:
 - External Tenants API
-- External Profiles API  
+- External Profiles API
 - ForceDecks API (v2019q3 team endpoints)
 
 Contact your VALD client success manager to obtain credentials.
@@ -199,26 +206,48 @@ Contact your VALD client success manager to obtain credentials.
 ## Usage
 
 ```bash
-# Run for today
+# Run for today's date (default sport: womens_lacrosse)
 python3 run_pipeline.py
 
 # Run for a specific date
 python3 run_pipeline.py --date 2026-03-02
 
-# Run for a different sport
+# Run for a specific sport
 python3 run_pipeline.py --sport womens_lacrosse --date 2026-03-02
 
-# Run with custom season start
+# Run with custom season start for baseline history
 python3 run_pipeline.py --date 2026-03-02 --season-start 2026-01-01
+
+# Watch mode — runs continuously during live testing sessions
+# Checks for new tests every 3 minutes and updates Sheets automatically
+python3 run_pipeline.py --watch
+
+# Watch mode with custom polling interval (minutes)
+python3 run_pipeline.py --watch --interval 2
 ```
 
 ---
 
 ## Automation
 
-### Cron (local, Mac)
+### Watch Mode (testing days)
 
-Runs automatically every weekday at 9am:
+The recommended approach on testing days. Start watch mode before athletes begin testing and leave it running. The pipeline polls for new CMJ tests on a set interval, updates the Google Sheet when new data appears, and skips duplicate records on re-runs.
+
+```bash
+python3 run_pipeline.py --watch
+```
+
+Typical latency from test completion to dashboard update:
+- VALD device → cloud sync: ~1–2 minutes
+- Pipeline polling interval: 3 minutes (default)
+- **Total: data visible within ~5 minutes of test completion**
+
+Stop with `Ctrl+C` when testing is complete.
+
+### Cron (scheduled daily runs)
+
+For non-testing days or automated daily checks:
 
 ```bash
 crontab -e
@@ -238,18 +267,21 @@ See `.github/workflows/daily_pipeline.yml` for scheduled cloud execution indepen
 
 ### VALD_ForceDecks Tab (archive)
 
-One row per athlete per testing date. Columns:
+One row per athlete per testing date. Appends new rows on each run — safe to re-run, duplicates are skipped automatically. Columns:
 
-`Date | Athlete | Jump Height | RSImod | Ecc Braking RFD/BM | Peak Power/BM | Contraction Time | EDI/BM | Overall Light | Flagged Metrics | Baseline Warning | JH Dev% | RSImod Dev% | EccRFD Dev% | PP Dev% | CT Dev% | Best Trial`
+`Date | Athlete | Jump Height (in) | RSImod | Ecc Braking RFD/BM | Peak Power/BM | Contraction Time (s) | EDI/BM | Overall Light | Flagged Metrics | Baseline Warning | JH Dev% | RSImod Dev% | EccRFD Dev% | PP Dev% | CT Dev% | Best Trial`
 
 ### Prescription Dashboard Tab (coach-facing)
 
-Writes directly to existing dashboard:
-- **Column I** — overall traffic light emoji (🟢 🟡 🔴)
-- **Column L** — flagged metrics with deviation percentages
-- **Cell B1** — date selector updated to test date
+Writes directly to the existing coaching dashboard on each run:
 
-All formula-driven columns left untouched.
+| Column | Content |
+|---|---|
+| I | Overall traffic light emoji (🟢 🟡 🔴) |
+| L | Flagged metrics with deviation percentages |
+| B1 | Date selector updated to test date (M/D/YYYY format) |
+
+All formula-driven columns (EWMA sRPE, Wellness %, Game Proximity, Weight Room Prescription) are left untouched. The traffic light in column I feeds into the Weight Room Prescription formula in column K, which uses a flag hierarchy of ForceDecks status → wellness → EWMA load → session load to generate velocity-based training recommendations calibrated to RepOne VBT zones.
 
 ---
 
@@ -259,9 +291,18 @@ All formula-driven columns left untouched.
 
 **Trials endpoint:** The detailed tests endpoint (`/v2019q3/teams/{teamId}/tests/detailed/{dateFrom}/{dateTo}`) embeds trial structure but returns empty `results` arrays. Metric values require a separate call to `/v2019q3/teams/{teamId}/tests/{testId}/trials` per test.
 
+**Date format:** The pipeline writes dates to the Google Sheet in M/D/YYYY format to maintain compatibility with existing DATEVALUE() formula references in the dashboard.
+
+---
+
+## Roadmap
+
+- **v2** — Retrospective analysis notebook: seasonal trend analysis, metric correlation, load-readiness relationships across full season data
+- **v3** — Multi-sport database + Streamlit/Plotly dashboard: PostgreSQL backend, all sports feeding a single pipeline, interactive web frontend
+
 ---
 
 ## Author
 
-Dustin Malandra  
+Dustin Malandra
 Performance Scientist / Strength & Conditioning Coach
