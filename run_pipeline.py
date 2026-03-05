@@ -13,7 +13,7 @@ Usage:
 
 import argparse
 import pandas as pd
-from datetime import date
+from datetime import date, datetime, time
 
 from vald_client  import get_cmj_results, get_cmj_season
 from vald_metrics import process_cmj_data, get_dashboard_snapshot
@@ -155,6 +155,26 @@ def _print_snapshot(snapshot: pd.DataFrame):
     n_green  = (snapshot["overall_light"] == GREEN).sum()
     print(f"🔴 RED: {n_red}   🟡 YELLOW: {n_yellow}   🟢 GREEN: {n_green}")
     print("=" * 60 + "\n")
+    
+# Watch for new tests every N minutes (game-day mode)
+def watch(sport_key: str, interval_minutes: int = 3):
+    """
+    Runs the pipeline on a loop, checking for new tests every N minutes.
+    Designed for game-day or testing-day use.
+    """
+
+    test_date = str(date.today())
+    print(f"👀 Watching for new CMJ tests — {sport_key} — {test_date}")
+    print(f"   Checking every {interval_minutes} minutes. Ctrl+C to stop.\n")
+
+    while True:
+        try:
+            print(f"--- Checking {datetime.now().strftime('%H:%M:%S')} ---")
+            run(sport_key=sport_key, test_date=test_date, verbose=False)
+            print(f"✅ Sheet updated. Next check in {interval_minutes} min...\n")
+        except Exception as e:
+            print(f"⚠️  Error: {e}. Retrying in {interval_minutes} min...\n")
+        time.sleep(interval_minutes * 60)
 
 
 # ── CLI entry point ───────────────────────────────────────────────────────────
@@ -177,11 +197,26 @@ if __name__ == "__main__":
         default=SEASON_START,
         help=f"Season start date (default: {SEASON_START})"
     )
+    
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Run continuously, checking for new tests every N minutes"
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=3,
+        help="Polling interval in minutes when using --watch (default: 3)"
+    )
 
     args = parser.parse_args()
 
-    run(
-        sport_key    = args.sport,
+    if args.watch:
+        watch(sport_key=args.sport, interval_minutes=args.interval)
+    else:
+        run(
+            sport_key    = args.sport,
         test_date    = args.date,
         season_start = args.season_start,
     )
