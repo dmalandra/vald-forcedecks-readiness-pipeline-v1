@@ -13,7 +13,8 @@ Usage:
 
 import argparse
 import pandas as pd
-from datetime import date, datetime, time
+from datetime import date, datetime
+import time
 
 from vald_client  import get_cmj_results, get_cmj_season
 from vald_metrics import process_cmj_data, get_dashboard_snapshot
@@ -158,6 +159,8 @@ def _print_snapshot(snapshot: pd.DataFrame):
     
 # Watch for new tests every N minutes (game-day mode)
 def watch(sport_key: str, interval_minutes: int = 3):
+    from datetime import date
+    import time
     """
     Runs the pipeline on a loop, checking for new tests every N minutes.
     Designed for game-day or testing-day use.
