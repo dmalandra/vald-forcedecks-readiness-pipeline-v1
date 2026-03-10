@@ -304,7 +304,7 @@ def write_dashboard(snapshot: pd.DataFrame, test_date: str):
             "values": [[emoji]]
         })
 
-        # Column L — flagged metrics
+        # Column N — flagged metrics
         updates.append({
             "range": gspread.utils.rowcol_to_a1(row_num, FLAGS_COL),
             "values": [[flag_str]]
